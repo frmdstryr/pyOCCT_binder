@@ -92,8 +92,6 @@ class Generator(object):
     :ivar str name: Name of the main package.
     """
 
-    package_name = 'OCCT'
-
     available_mods = set()
     available_incs = set()
     available_templates = set()
@@ -112,6 +110,12 @@ class Generator(object):
     immutable = set()
     split = set()
 
+    # Mapping of package name to module
+    namespace = dict()
+
+    # Includes added to all modules
+    common_includes = set()
+
     excluded_bases = dict()
     import_guards = dict()
     plus_headers = dict()
@@ -128,11 +132,18 @@ class Generator(object):
 
     _mods = OrderedDict()
 
-    def __init__(self, available_mods, occt_include_dir, *includes):
+    def __init__(self, package_name, namespace, all_includes, includes_dirs=None):
+        self.package_name = package_name
         self._indx = Index.create()
 
+        # If all_includes is a path just use that
+        if isinstance(all_includes, str):
+            if includes_dirs is None:
+                includes_dirs = [all_includes]
+            all_includes = os.listdir(all_includes)
+
         # Primary include directories
-        self._main_includes = [occt_include_dir] + list(includes)
+        self._main_includes = list(includes_dirs or [])
 
         # Include directories
         self.include_dirs = []
@@ -148,9 +159,10 @@ class Generator(object):
         self._tu_binder = None
 
         # Build available include files
-        occt_incs = os.listdir(occt_include_dir)
-        Generator.available_incs = frozenset(occt_incs)
-        Generator.available_mods = frozenset(available_mods)
+        Generator.namespace = namespace
+        Generator.common_includes = set([f'py{package_name}_Common.hxx'])
+        Generator.available_incs = frozenset(all_includes)
+        Generator.available_mods = frozenset(namespace[package_name])
 
         # Turn on/off binding of certain declarations for debugging
         self.bind_enums = True
@@ -774,7 +786,7 @@ class Generator(object):
                     continue
 
                 # Check available
-                if other_name not in Generator.available_mods:
+                if Generator.get_namespace(other_name) is None:
                     continue
 
                 # Don't add this module
@@ -809,6 +821,8 @@ class Generator(object):
         """
         logger.write('Binding types...\n')
         for mod in self.modules:
+            if mod.is_excluded:
+                 continue
             mod.bind(path)
         logger.write('done.\n\n')
 
@@ -864,6 +878,18 @@ class Generator(object):
             mod = Module(name)
             cls._mods[name] = mod
             return mod
+
+    @classmethod
+    def get_namespace(cls, name):
+        """
+        Get the namespace of a module
+        :param str name: Module name.
+        :return: The module namespace name or None.
+        :rtype: str
+        """
+        for namespace, mods in cls.namespace.items():
+            if name in mods:
+                return namespace
 
 
 class Module(object):
@@ -984,7 +1010,7 @@ class Module(object):
         Build list of include files for the module.
         :return: None.
         """
-        self.includes = ['pyOCCT_Common.hxx']
+        self.includes = list(Generator.common_includes)
 
         # Excluded headers per module
         minus_headers = set()
@@ -1032,6 +1058,8 @@ class Module(object):
             if mod_name == other.name:
                 return True
             mod = Generator.get_module(mod_name)
+            if mod is None:
+                return False  # External namespace
             stack = list(mod.imports) + stack
         return False
 
@@ -1043,6 +1071,10 @@ class Module(object):
         :rtype: bool
         """
         return self.is_dependent(other) and other.is_dependent(self)
+
+    @property
+    def is_excluded(self):
+        return self.name in Generator.excluded_mods
 
     def bind_templates(self, path):
         """
@@ -1132,16 +1164,18 @@ class Module(object):
             if mod_name in guarded:
                 continue
             if mod_name != self.name:
+                package_name = Generator.get_namespace(mod_name)
                 fout.write('py::module::import(\"{}.{}\");\n'.format(
-                    Generator.package_name, mod_name))
+                    package_name, mod_name))
         fout.write('\n')
 
         # Import guards
         for mod_name in guarded:
+            package_name = Generator.get_namespace(mod_name)
             fout.write('struct Import{}{{\n'.format(mod_name))
             fout.write(
                 '\tImport{}() {{ py::module::import(\"{}.{}\"); }}\n'.format(
-                    mod_name, Generator.package_name, mod_name))
+                    mod_name, package_name, mod_name))
             fout.write('};\n\n')
 
         # If the module is split in two, only bind half and save the rest for another file

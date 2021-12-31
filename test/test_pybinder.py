@@ -32,10 +32,13 @@ class TestBinder(unittest.TestCase):
         """
         Set up the tests by parsing the header.
         """
-        available_mods = {'Test', 'TestSplit'}
+        test_mods = {'Test', 'TestSplit'}
+        namespace = {
+            'Test': test_mods
+        }
         inc = './include/'
         output_path = './output'
-        gen = Generator(available_mods, inc)
+        gen = Generator('Test', namespace, inc)
         gen.process_config('config.txt')
         gen.parse('all_includes.h')
         gen.dump_diagnostics(1)
