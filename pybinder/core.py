@@ -132,18 +132,18 @@ class Generator(object):
 
     _mods = OrderedDict()
 
-    def __init__(self, package_name, namespace, all_includes, includes_dirs=None):
+    def __init__(self, package_name, namespace, all_includes, include_dirs=None):
         self.package_name = package_name
         self._indx = Index.create()
 
         # If all_includes is a path just use that
         if isinstance(all_includes, str):
-            if includes_dirs is None:
-                includes_dirs = [all_includes]
+            if include_dirs is None:
+                include_dirs = [all_includes]
             all_includes = os.listdir(all_includes)
 
         # Primary include directories
-        self._main_includes = list(includes_dirs or [])
+        self._main_includes = list(include_dirs or [])
 
         # Include directories
         self.include_dirs = []
@@ -2410,12 +2410,13 @@ def generate_enum(binder):
         name = Generator.python_names[qname]
 
     # Cast anonymous enum to int
-    if '(anonymous enum' in binder.type.spelling:
+    if re.search(r'(anonymous|unnamed) enum', binder.type.spelling):
         for e in binder.enum_constants:
             name, qname = e.spelling, e.qualified_name
             # Check and fix if anonymous is in the enum decl
-            if '(anonymous' in e.type.spelling:
-                indx = e.type.spelling.find('(anonymous')
+            m = re.search(r'\((anonymous|unnamed)', e.type.spelling)
+            if m:
+                indx = m.span()[0]
                 if indx:
                     prefix = e.type.spelling[:indx]
                     qname = ''.join([prefix, e.spelling])
