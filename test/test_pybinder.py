@@ -32,13 +32,14 @@ class TestBinder(unittest.TestCase):
         """
         Set up the tests by parsing the header.
         """
+        package_name = 'OCCT'
         test_mods = {'Test', 'TestSplit'}
         namespace = {
-            'Test': test_mods
+            package_name: test_mods
         }
         inc = './include/'
         output_path = './output'
-        gen = Generator('Test', namespace, inc)
+        gen = Generator(package_name, namespace, inc)
         gen.process_config('config.txt')
         gen.parse('all_includes.h')
         gen.dump_diagnostics(1)
