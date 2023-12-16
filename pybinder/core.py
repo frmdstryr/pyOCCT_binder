@@ -1316,7 +1316,7 @@ class CursorBinder(object):
             return CursorKind.NO_DECL_FOUND
 
     @property
-    def type(self):
+    def type(self) -> "TypeBinder":
         """
         :return: The cursor type.
         :rtype: binder.core.TypeBinder
@@ -1324,7 +1324,7 @@ class CursorBinder(object):
         return TypeBinder(self.cursor.type)
 
     @property
-    def canonical(self):
+    def canonical(self) -> "CursorBinder":
         """
         :return: The canonical cursor.
         :rtype: binder.core.CursorBinder
@@ -1332,7 +1332,7 @@ class CursorBinder(object):
         return CursorBinder(self.cursor.canonical)
 
     @property
-    def underlying_typedef_type(self):
+    def underlying_typedef_type(self) -> "TypeBinder":
         """
         :return: The cursor underlying typedef type.
         :rtype: binder.core.TypeBinder
@@ -1340,7 +1340,7 @@ class CursorBinder(object):
         return TypeBinder(self.cursor.underlying_typedef_type)
 
     @property
-    def rtype(self):
+    def rtype(self) -> "TypeBinder":
         """
         :return: The cursor result type.
         :rtype: binder.core.TypeBinder
@@ -1348,7 +1348,7 @@ class CursorBinder(object):
         return TypeBinder(self.cursor.result_type)
 
     @property
-    def display_name(self):
+    def display_name(self) -> str:
         """
         :return: The display name.
         :rtype: str
@@ -1359,7 +1359,7 @@ class CursorBinder(object):
             return 'NULL'
 
     @property
-    def qualified_display_name(self):
+    def qualified_display_name(self) -> str:
         """
         :return: The qualified display name.
         :rtype: str
@@ -1367,13 +1367,15 @@ class CursorBinder(object):
         names = []
         b = self
         while not b.is_null and not b.is_tu:
-            name = b.display_name
-            if name:
-                names.append(b.display_name)
+            if name := b.display_name:
+                names.append(name)
             else:
                 break
             b = b.parent
         names.reverse()
+        if "__1" in names:
+            # Hack for std::__1::basic_ostream
+            names.remove("__1")
         qname = '::'.join(names)
 
         if 'operator()' in qname:
@@ -1384,7 +1386,7 @@ class CursorBinder(object):
         return qname
 
     @property
-    def spelling(self):
+    def spelling(self) -> str:
         """
         :return: The spelling.
         :rtype: str
@@ -1392,71 +1394,75 @@ class CursorBinder(object):
         return self.cursor.spelling
 
     @property
-    def no_decl(self):
+    def no_decl(self) -> bool:
         return self.kind == CursorKind.NO_DECL_FOUND
 
     @property
-    def is_null(self):
+    def is_null(self) -> bool:
         return self.cursor is None or self.kind == CursorKind.NO_DECL_FOUND
 
     @property
-    def is_tu(self):
+    def is_tu(self) -> bool:
         return self.kind == CursorKind.TRANSLATION_UNIT
 
     @property
-    def is_enum(self):
+    def is_enum(self) -> bool:
         return self.kind == CursorKind.ENUM_DECL
 
     @property
-    def is_enum_constant(self):
+    def is_enum_constant(self) -> bool:
         return self.kind == CursorKind.ENUM_CONSTANT_DECL
 
     @property
-    def is_function(self):
+    def is_function(self) -> bool:
         return self.kind == CursorKind.FUNCTION_DECL
 
     @property
-    def is_class(self):
-        return self.kind in [CursorKind.CLASS_DECL, CursorKind.STRUCT_DECL]
+    def is_class(self) -> bool:
+        return self.kind in (CursorKind.CLASS_DECL, CursorKind.STRUCT_DECL)
 
     @property
-    def is_typedef(self):
+    def is_typedef(self) -> bool:
         return self.kind == CursorKind.TYPEDEF_DECL
 
     @property
-    def is_cxx_base(self):
+    def is_cxx_base(self) -> bool:
         return self.kind == CursorKind.CXX_BASE_SPECIFIER
 
     @property
-    def is_constructor(self):
+    def is_constructor(self) -> bool:
         return self.kind == CursorKind.CONSTRUCTOR
 
     @property
-    def is_destructor(self):
+    def is_destructor(self) -> bool:
         return self.kind == CursorKind.DESTRUCTOR
 
     @property
-    def is_cxx_method(self):
+    def is_cxx_method(self) -> bool:
         return self.kind == CursorKind.CXX_METHOD
 
     @property
-    def is_param(self):
+    def is_param(self) -> bool:
         return self.kind == CursorKind.PARM_DECL
 
     @property
-    def is_field(self):
+    def is_field(self) -> bool:
         return self.kind == CursorKind.FIELD_DECL
 
     @property
-    def is_template_ref(self):
+    def is_bitfield(self) -> bool:
+        return self.cursor.is_bitfield()
+
+    @property
+    def is_template_ref(self) -> bool:
         return self.kind == CursorKind.TEMPLATE_REF
 
     @property
-    def is_class_template(self):
+    def is_class_template(self) -> bool:
         return self.kind == CursorKind.CLASS_TEMPLATE
 
     @property
-    def is_function_template(self):
+    def is_function_template(self) -> bool:
         return self.kind == CursorKind.FUNCTION_TEMPLATE
 
     @property
@@ -1466,6 +1472,10 @@ class CursorBinder(object):
     @property
     def is_using_decl(self):
         return self.kind == CursorKind.USING_DECLARATION
+
+    @property
+    def is_type_alias_decl(self):
+        return self.kind == CursorKind.TYPE_ALIAS_DECL
 
     @property
     def is_overloaded_decl_ref(self):
@@ -2156,6 +2166,78 @@ class TypeBinder(object):
         return self.type.spelling
 
     @property
+    def alias_spelling(self):
+        """
+        :return: The spelling of the aliased type (using).
+        :rtype: str
+        """
+        canonical_spelling = self.get_canonical().spelling
+        # Hack for `const Standard_Address`, `const Standard_Address &`, `const Standard_CString &`
+        if canonical_spelling in (
+            "void *const",
+            "void *const &",
+            "const char *const &",
+            "const std::string &",
+        ):
+            return canonical_spelling
+
+        spelling = default_spelling = self.spelling
+        if self.is_pointer_like:
+            ref = self.get_pointee()
+            if self.is_pointer:
+                c = "*"
+            elif self.is_lvalue:
+                c = "&"
+            else:
+                c = "&&"
+            spelling = f"{ref.alias_spelling}{c}"
+        else:
+            d = self.get_declaration()
+            if d.is_enum:
+                spelling = d.qualified_display_name
+            elif d.is_class and d.is_nested:
+                spelling = f"typename {d.qualified_display_name}"
+            elif d.is_class: # and "handle<" in spelling and "opencascade::handle<" not in spelling:
+                # TODO: spelling sometimes has template args but qualified doesnt?
+                display_name = d.qualified_display_name
+                if len(display_name) > len(spelling):
+                    spelling = display_name
+            elif d.is_typedef:
+                underlying_type = d.underlying_typedef_type
+                if underlying_type.is_fn_ptr:
+                    spelling = self.get_canonical().spelling
+                else:
+                    spelling = underlying_type.alias_spelling
+            elif d.is_using_decl or d.is_type_alias_decl:
+                toks = []
+                MODIFIERS = ("const", "long", "unsigned", "typename")
+                all_toks = [it.spelling for it in d.cursor.get_tokens()]
+                for i, v in enumerate(all_toks):
+                    # Keep space after const and long
+                    if v in MODIFIERS:
+                        toks.append(f"{v} ")
+                        continue
+                    # HACK...
+                    last_tok = toks[-1] if toks else None
+                    next_tok = all_toks[i+1] if i+1 < len(all_toks) else None
+                    if v == "handle" and next_tok == "<" and last_tok != ":":
+                        toks.append("opencascade::handle")
+                        continue
+                    toks.append(v)
+                spelling = "".join(toks[3:])
+
+        if self.is_const_qualified and not spelling.startswith("const "):
+            if default_spelling.endswith("*const") and spelling.endswith("*"):
+                # Apparently there is a difference between 'const T*' and 'T *const'
+                return f"{spelling[:-1]} *const"
+            return f"const {spelling}"
+        elif canonical_spelling.endswith("*const &") and spelling.endswith("*&") and spelling.startswith("const "):
+            #  HACK Replace 'const T*&' with 'T *const &'
+            return f"{spelling[6:-2]} *const &"
+
+        return spelling
+
+    @property
     def kind(self):
         """
         :return: The cursor kind.
@@ -2180,12 +2262,26 @@ class TypeBinder(object):
         return self.kind == TypeKind.POINTER
 
     @property
+    def is_elaborated(self):
+        return self.kind == TypeKind.ELABORATED
+
+    @property
     def is_lvalue(self):
         return self.kind == TypeKind.LVALUEREFERENCE
 
     @property
     def is_rvalue(self):
         return self.kind == TypeKind.RVALUEREFERENCE
+
+    @property
+    def is_fnproto(self):
+        return self.kind == TypeKind.FUNCTIONPROTO
+
+    @property
+    def is_fn_ptr(self):
+        if not self.is_pointer:
+            return False
+        return self.get_pointee().is_fnproto
 
     @property
     def is_pointer_like(self):
@@ -2200,6 +2296,24 @@ class TypeBinder(object):
     @property
     def is_const_qualified(self):
         return self.type.is_const_qualified()
+
+    @property
+    def is_alias(self):
+        if self.is_elaborated:
+            d = self.get_declaration()
+            return (
+                d.is_type_alias_decl
+                or d.is_using_decl
+                or d.is_typedef
+                or d.is_class
+                or d.is_enum
+            )
+        elif self.is_pointer_like:
+            try:
+                return self.get_pointee().is_alias
+            except RecursionError:
+                pass
+        return False
 
     def get_declaration(self):
         """
@@ -2338,13 +2452,11 @@ def bind_class_template(binder, path):
     """
 
     # Include guard
-    src = [
-        '#ifndef __{}__\n'.format(binder.spelling),
-        '#define __{}__\n\n'.format(binder.spelling)
-    ]
+    src = ['#pragma once\n']
 
     # Include files
-    for inc in binder.includes:
+    includes = set(list(Generator.common_includes) + binder.includes)
+    for inc in includes:
         src.append('#include <{}>\n'.format(inc))
     src.append('\n')
 
@@ -2376,9 +2488,6 @@ def bind_class_template(binder, path):
 
     # End function
     src.append('}\n\n')
-
-    # End include guard
-    src.append('#endif')
 
     # Patch the file
     patch_src(bind_name, src)
@@ -2476,6 +2585,11 @@ def generate_function(binder):
     else:
         signature = ''
 
+    if binder.is_excluded:
+        prefix = '// excluded // '
+    else:
+        prefix = ''
+
     # Variable names and default values
     args = []
     for arg in binder.parameters:
@@ -2490,9 +2604,8 @@ def generate_function(binder):
 
     # Source
     interface = '({} (*) ({}))'.format(rtype, signature)
-    src = ['mod.def(\"{}\", {} &{}, \"{}\"{});\n\n'.format(fname, interface,
-                                                           qname, docs,
-                                                           args)]
+    src = ['{}mod.def(\"{}\", {} &{}, \"{}\"{});\n\n'.format(
+        prefix, fname, interface, qname, docs, args)]
 
     # TODO How to handle arrays
     if True in is_array_like:
@@ -2738,7 +2851,7 @@ def generate_ctor(binder):
         src = '{}.def(py::init<{}>(){});\n'.format(binder.parent_name,
                                                    signature, py_args)
         # Comment if excluded
-        if binder.is_excluded or binder.is_move_ctor:
+        if binder.is_excluded or binder.is_move_ctor or "&&" in signature:
             src = ' '.join(['//', src])
         ctors.append(src)
 
@@ -2763,10 +2876,29 @@ def generate_field(binder):
     if binder.is_excluded:
         prefix = '// {}'.format(prefix)
 
-    src = [
-        '{}.def_{}(\"{}\", &{}, \"{}\");\n'.format(prefix, type_, name, qname,
-                                                   docs)]
-
+    if binder.is_bitfield:
+        ftype = binder.type.spelling
+        parent = binder.parent.qualified_name
+        reader = '[](%s& self) -> %s { return self.%s; }' % (
+            parent, ftype, name)
+        if type_ == "_readonly":
+            src = [
+                '{}.def_property_readonly(\"{}\", {}, \"{}\");\n'.format(
+                    prefix, name, reader, docs)
+            ]
+        else:
+            writer = '[](%s& self, const %s value) { self.%s = value; }' % (
+                parent, ftype, name)
+            src = [
+                '{}.def_property(\"{}\", {}, {}, \"{}\");\n'.format(
+                    prefix, name, reader, writer, docs)
+            ]
+    else:
+        src = [
+            '{}.def_{}(\"{}\", &{}, \"{}\");\n'.format(
+                prefix, type_, name, qname, docs)
+        ]
+    # TODO: Make setter/getter for bitfield
     if binder.type.is_array_like:
         src[0] = ' '.join(['//', src[0]])
 
@@ -2799,7 +2931,12 @@ def generate_method(binder):
     elif binder.is_pure_virtual_method:
         prefix = '// virtual // {}'.format(prefix)
 
-    rtype = binder.rtype.spelling
+    if binder.rtype.is_alias:
+        rtype = binder.rtype.alias_spelling
+    else:
+        rtype = binder.rtype.spelling
+
+
     qname = binder.qualified_name
 
     ptr = '*'
@@ -2906,8 +3043,12 @@ def generate_method(binder):
                 prefix, is_static, fname, signature, rtype, qname_, call,
                 cguards)
 
-        # TODO How to handle arrays?
-        if True in is_array_like:
+            if is_operator:
+                # Hack disable self.__call__
+                src = ' '.join(['//', src])
+
+        # TODO How to handle arrays or &&?
+        if True in is_array_like or "&&" in signature:
             src = ' '.join(['//', src])
 
         methods.append(src)
@@ -2978,8 +3119,9 @@ def patch_typenames(binder, src):
     qname = binder.qualified_name
     spelling = binder.qualified_spelling
 
+    find, replace = spelling + '::', 'typename ' + qname + '::'
     for line in src:
-        line = line.replace(spelling + '::', 'typename ' + qname + '::')
+        line = line.replace(find, replace)
         src_out.append(line)
     return src_out
 
@@ -3010,7 +3152,16 @@ def function_signature(binder):
     for arg in binder.parameters:
         nargs += 1
         args_name.append(arg.spelling)
-        args_type.append(arg.type.spelling)
+        if arg.type.is_alias:
+            args_type.append(arg.type.alias_spelling)
+        else:
+            args_type.append(arg.type.spelling)
+        # if (
+        #        "const TopOpeBRep_FacesFiller*&" == args_type[-1]
+        # ):
+        #        import IPython
+        #        IPython.embed()
+        #        assert False
         default = arg.default_value
         defaults.append(default)
         if default:
@@ -3038,7 +3189,10 @@ def generate_immutable_inout_method(binder, qname):
     non_const_immutable_args = []
     i = 0
     for arg in binder.parameters:
-        type_ = arg.type.spelling
+        if arg.type.is_alias:
+            type_ = arg.type.alias_spelling
+        else:
+            type_ = arg.type.spelling
         name = arg.spelling
         if not name:
             name = 'a{}'.format(str(i))
