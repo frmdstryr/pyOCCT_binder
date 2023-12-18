@@ -130,6 +130,8 @@ class Generator(object):
     return_policies = dict()
     before_module = dict()
 
+    sort_order = dict() # type: dict[str, list[str, int]]
+
     _mods = OrderedDict()
 
     def __init__(self, package_name, namespace, all_includes, include_dirs=None):
@@ -150,9 +152,6 @@ class Generator(object):
 
         # Compiler arguments
         self.compiler_args = {}
-
-        # Sort priority
-        self._sort = {}
 
         # Translation unit and main cursor
         self._tu = None
@@ -233,12 +232,15 @@ class Generator(object):
 
                     # Sort order
                     if line.startswith('+sort'):
-                        line = line.replace('+sort', '')
-                        line = line.strip()
-                        mod, loc = line.split(':')
+                        line = line.replace('+sort', '').strip()
+                        mod, value = line.split(':')
                         mod = mod.strip()
-                        loc = loc.strip()
-                        self._sort[mod] = int(loc)
+                        pattern, prio = value.split("=")
+                        if mod not in Generator.sort_order:
+                            Generator.sort_order[mod] = []
+                        Generator.sort_order[mod].append(
+                            (pattern.strip(), int(prio.strip()))
+                        )
                         continue
 
                     # Excluded header
@@ -961,6 +963,25 @@ class Module(object):
 
         # Bind types
         self.sorted_binders += self.types
+        original_order = {
+            v: i
+            for i, v in enumerate(self.sorted_binders)
+        }
+
+        if sort_order := Generator.sort_order.get(self.name):
+            # Hack to workaround TColgp not ordering
+            # base classes properly
+            def sort_fn(v):
+                priority = 10000
+                # TODO: Push into config
+                for pattern, prio in sort_order:
+                    if pattern in v.spelling:
+                        priority = prio
+                return (priority, original_order[v])
+
+
+            self.sorted_binders.sort(key=sort_fn)
+
 
         # binders1 = list(self.classes)
         # canonical2original = {}
