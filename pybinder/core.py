@@ -2471,18 +2471,21 @@ def bind_class_template(binder, path):
     :param str path: The path to write the source file.
     :return: None.
     """
+    # Bind function name
+    bind_name = f"bind_{binder.python_name}"
 
     # Include guard
     src = ['#pragma once\n']
 
     # Include files
-    includes = set(list(Generator.common_includes) + binder.includes)
-    for inc in includes:
-        src.append('#include <{}>\n'.format(inc))
+    includes = list(Generator.common_includes) + binder.includes
+    if extra_includes := Generator.plus_headers.get(bind_name):
+        includes.extend(extra_includes)
+    for inc in set(includes):
+        src.append(f'#include <{inc}>\n')
     src.append('\n')
 
     # Bind function name
-    bind_name = '_'.join(['bind', binder.python_name])
     binder.bind_name = bind_name
     Generator.available_templates.add(binder.bind_name)
 
@@ -2490,7 +2493,7 @@ def bind_class_template(binder, path):
     template_params = []
     for t in binder.template_parameters:
         if t.is_template_type_param:
-            template_param = 'typename {}'.format(t.display_name)
+            template_param = f'typename {t.display_name}'
         else:
             template_param = '{} {}'.format(t.type.spelling, t.display_name)
         if t.default_value:
