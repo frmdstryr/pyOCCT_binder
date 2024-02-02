@@ -32,7 +32,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 PYBIND11_MODULE(Test, mod) {
 
 
-// ENUM: 
+// ENUM: TAGGEDENUM
 py::enum_<TaggedEnum>(mod, "TaggedEnum", "None")
 	.value("TaggedEnum_A", TaggedEnum::TaggedEnum_A)
 	.value("TaggedEnum_B", TaggedEnum::TaggedEnum_B)
@@ -74,7 +74,7 @@ cls_Test_Getter.def(py::init<>());
 // Methods
 cls_Test_Getter.def("OtherValue", (int & (Test_Getter::*)()) &Test_Getter::OtherValue, "None");
 cls_Test_Getter.def("Value", (int & (Test_Getter::*)()) &Test_Getter::Value, "None", py::return_value_policy::reference_internal);
-cls_Test_Getter.def("SetValue", (int (Test_Getter::*)()) &Test_Getter::SetValue, "None");
+cls_Test_Getter.def("SetValue", (int (Test_Getter::*)(int)) &Test_Getter::SetValue, "None", py::arg("v"));
 
 // CLASS: TEST_NODE
 py::class_<Test_Node> cls_Test_Node(mod, "Test_Node", "None");
@@ -89,7 +89,7 @@ py::class_<Test_Mesh> cls_Test_Mesh(mod, "Test_Mesh", "None");
 cls_Test_Mesh.def(py::init<>());
 
 // Methods
-cls_Test_Mesh.def("AddNode", (void (Test_Mesh::*)(const int, Test_Node *)) &Test_Mesh::AddNode, "None", py::arg("id"), py::arg("node"), py::keep_alive<1, 2>());
+cls_Test_Mesh.def("AddNode", (void (Test_Mesh::*)(const int, Test_Node*)) &Test_Mesh::AddNode, "None", py::arg("id"), py::arg("node"), py::keep_alive<1, 2>());
 
 // CLASS: TEST_PNAME
 py::class_<Test_Pname> cls_Test_NewName(mod, "Test_NewName", "Test class");

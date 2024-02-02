@@ -19,10 +19,9 @@ You should have received a copy of the GNU Lesser General Public
 License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef __Test_Template__
-#define __Test_Template__
-
+#pragma once
 #include <Test_Template.h>
+#include <pyOCCT_Common.hxx>
 
 template <typename T, typename K=int>
 void bind_Test_Template(py::module &mod, std::string const &name, py::module_local const &local){
@@ -33,5 +32,3 @@ py::class_<Test_Template<T, K>> cls_Test_Template(mod, name.c_str(), "Test templ
 cls_Test_Template.def(py::init<>());
 
 }
-
-#endif

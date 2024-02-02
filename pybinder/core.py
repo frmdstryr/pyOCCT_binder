@@ -2581,9 +2581,10 @@ def generate_enum(binder):
                 if indx:
                     prefix = e.type.spelling[:indx]
                     qname = ''.join([prefix, e.spelling])
+
             txt = '{}.attr(\"{}\") = py::cast(int({}));\n'.format(parent,
                                                                   name,
-                                                                  qname)
+                                                                  qname or name)
             src.append(txt)
     else:
         # Hack for missing name
