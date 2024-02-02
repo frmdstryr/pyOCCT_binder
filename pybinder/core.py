@@ -2436,6 +2436,15 @@ def bind_typedef(binder):
     """
     src = ['// TYPEDEF: {}\n'.format(binder.python_name.upper())]
 
+    # Text before type
+    qname = binder.qualified_name
+    if qname in Generator.before_type:
+        src.append('// Before type\n')
+        for txt in Generator.before_type[qname]:
+            txt = ''.join([txt, '\n'])
+            src.append(txt)
+        src.append('\n')
+
     # Generate source
     other_src, bind_template, extra = generate_typedef2(binder)
 
