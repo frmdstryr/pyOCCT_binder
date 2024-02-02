@@ -2508,7 +2508,7 @@ def bind_class_template(binder, path):
     includes = list(Generator.common_includes) + binder.includes
     if extra_includes := Generator.plus_headers.get(bind_name):
         includes.extend(extra_includes)
-    for inc in set(includes):
+    for inc in sorted(set(includes)):
         src.append(f'#include <{inc}>\n')
     src.append('\n')
 
