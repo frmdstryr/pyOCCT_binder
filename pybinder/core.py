@@ -20,6 +20,8 @@
 import os
 import re
 import sys
+import io
+import hashlib
 import warnings
 from collections import OrderedDict
 from ctypes import c_uint
@@ -48,6 +50,22 @@ clangext.monkeypatch_cursor('get_overloaded_decl',
                             [Cursor, c_uint], Cursor)
 
 logger = open('log.txt', 'w')
+
+
+def overwrite_if_changed(path: str, source: io.StringIO):
+    """
+    Only overwrite the file at path if the buffer changed
+    """
+    data = source.getvalue().encode()
+    if os.path.exists(path):
+        new_hash = hashlib.sha256(data).hexdigest()
+        with open(path, 'rb') as f:
+            old_hash = hashlib.sha256(f.read()).hexdigest()
+            if new_hash == old_hash:
+                 logger.write(f"Skipping {path}, contents unchanged")
+                 return
+    with open(path, 'wb') as f:
+        f.write(data)
 
 
 class MacroForHandle(object):
@@ -1126,7 +1144,7 @@ class Module(object):
         # Check if module is split
         is_split = self.name in Generator.split
 
-        fout = open(fname, 'w')
+        fout = io.StringIO()
 
         # File header
         fout.write(SRC_PREFIX)
@@ -1226,12 +1244,12 @@ class Module(object):
 
         # End module
         fout.write('}\n')
-        fout.close()
+        overwrite_if_changed(fname, fout)
 
         # Create the split file
         if is_split:
             fname = '/'.join([path, self.name + '_2.cxx'])
-            fout = open(fname, 'w')
+            fout = io.StringIO()
 
             # File header
             fout.write(SRC_PREFIX)
@@ -1266,7 +1284,7 @@ class Module(object):
 
             # End module
             fout.write('}\n')
-            fout.close()
+            overwrite_if_changed(fname, fout)
 
 
 class CursorBinder(object):
@@ -2527,10 +2545,11 @@ def bind_class_template(binder, path):
 
     # Write file
     fname = ''.join([path, '/', bind_name, '.hxx'])
-    fout = open(fname, 'w')
+
+    fout = io.StringIO()
     fout.write(SRC_PREFIX)
     fout.writelines(src)
-    fout.close()
+    overwrite_if_changed(fname, fout)
 
 
 def generate_enum(binder):
