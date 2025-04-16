@@ -287,13 +287,13 @@ class Generator(object):
                     # Excluded functions
                     if line.startswith('-function*'):
                         line = line.replace('-function*', '')
-                        line = line.strip()
+                        line = line.strip().replace("[", "[[]")
                         self.excluded_fnames.add(line)
                         continue
 
                     if line.startswith('-function'):
                         line = line.replace('-function', '')
-                        line = line.strip()
+                        line = line.strip().replace("[", "[[]")
                         self.excluded_functions.add(line)
                         continue
 
