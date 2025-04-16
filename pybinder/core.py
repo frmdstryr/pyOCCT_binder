@@ -25,12 +25,14 @@ import hashlib
 import warnings
 from collections import OrderedDict
 from ctypes import c_uint
+from fnmatch import fnmatch
 
 from clang.cindex import (AccessSpecifier, Index, TranslationUnit,
                           CursorKind, TypeKind, Cursor)
 
 from pybinder import clangext
 from pybinder.common import SRC_PREFIX, PY_OPERATORS
+
 
 # Patches for libclang
 clangext.monkeypatch_cursor('get_specialization',
@@ -1613,8 +1615,8 @@ class CursorBinder(object):
             name = self.qualified_name
             # Special case trying to exclude functions with certain signatures
             dname = self.qualified_display_name
-            return (name in Generator.excluded_functions or
-                    dname in Generator.excluded_functions)
+            return (any(fnmatch(name, pat) for pat in Generator.excluded_functions) or
+                    any(fnmatch(dname, pat) for pat in Generator.excluded_functions))
         elif self.is_class or self.is_class_template:
             return self.qualified_name in Generator.excluded_classes
         elif self.is_typedef:
@@ -1629,9 +1631,9 @@ class CursorBinder(object):
             if self.is_static_method:
                 name += '_'
                 fname += '_'
-            return (name in Generator.excluded_functions or
-                    fname in Generator.excluded_fnames or
-                    dname in Generator.excluded_functions)
+            return (any(fnmatch(name, pat) for pat in Generator.excluded_functions) or
+                    any(fnmatch(fname, pat) for pat in Generator.excluded_fnames) or
+                    any(fnmatch(dname, pat) for pat in Generator.excluded_functions))
 
         return False
 
