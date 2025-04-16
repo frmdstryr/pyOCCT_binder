@@ -1937,7 +1937,10 @@ class CursorBinder(object):
             return ''
         txt = ''
         for t in self.cursor.get_tokens():
-            txt += t.spelling
+            if t.spelling == ">>":
+                txt += ">" # clang bug?
+            else:
+                txt += t.spelling
         if not txt or '=' not in txt:
             return ''
         return txt.split('=')[-1]
