@@ -117,12 +117,14 @@ class Generator(object):
     available_templates = set()
     excluded_classes = set()
     excluded_functions = set()
+    excluded_rtypes = set()
     excluded_enums = set()
     excluded_fnames = set()
     excluded_mods = set()
     excluded_typedefs = set()
     excluded_fields = set()
     excluded_headers = set()
+    excluded_namespaces: set[str] = {"std"}
     nodelete = set()
     nested_classes = set()
     downcast_classes = set()
@@ -149,6 +151,7 @@ class Generator(object):
     patches = dict()
     return_policies = dict()
     before_module = dict()
+    to_bind: set[CursorKind]
 
     sort_order = dict() # type: dict[str, list[str, int]]
 
@@ -189,6 +192,7 @@ class Generator(object):
         self.bind_classes = True
         self.bind_typedefs = True
         self.bind_class_templates = True
+
 
     @property
     def tu(self):
@@ -295,6 +299,12 @@ class Generator(object):
                         line = line.replace('-function', '')
                         line = line.strip().replace("[", "[[]")
                         self.excluded_functions.add(line)
+                        continue
+
+                    if line.startswith('-rtype'):
+                        line = line.replace('-rtype', '')
+                        line = line.strip().replace("[", "[[]")
+                        self.excluded_rtypes.add(line)
                         continue
 
                     # Excluded enums
@@ -622,18 +632,19 @@ class Generator(object):
                 available_macros[type1] = macro
 
         # What to bind
-        to_bind = []
+        to_bind = set()
         if self.bind_enums:
-            to_bind.append(CursorKind.ENUM_DECL)
+            to_bind.add(CursorKind.ENUM_DECL)
         if self.bind_functions:
-            to_bind.append(CursorKind.FUNCTION_DECL)
+            to_bind.add(CursorKind.FUNCTION_DECL)
         if self.bind_classes:
-            to_bind.append(CursorKind.STRUCT_DECL)
-            to_bind.append(CursorKind.CLASS_DECL)
+            to_bind.add(CursorKind.STRUCT_DECL)
+            to_bind.add(CursorKind.CLASS_DECL)
         if self.bind_typedefs:
-            to_bind.append(CursorKind.TYPEDEF_DECL)
+            to_bind.add(CursorKind.TYPEDEF_DECL)
         if self.bind_class_templates:
-            to_bind.append(CursorKind.CLASS_TEMPLATE)
+            to_bind.add(CursorKind.CLASS_TEMPLATE)
+        self.to_bind = to_bind
 
         enum_log = []
         function_log = []
@@ -645,109 +656,19 @@ class Generator(object):
         canonical_types = {}
         alias_log = []
 
-        # Available headers
-        available_incs = self.available_incs - self.excluded_headers
+        logs = {
+            "alias": alias_log,
+            "enum": enum_log,
+            "function": function_log,
+            "types": types_log,
+            "template": template_log,
+            "unknown": unknown_log,
+        }
 
         logger.write('Traversing...\n')
         # Traverse the translation unit and group the binders into modules
-        binders = self.tu_binder.get_children()
-        for binder in binders:
-            # Only bind definitions
-            # TODO Why is IGESFile and StepFile not considered definitions?
-            if (not binder.is_definition and
-                    not binder.spelling.startswith('IGESFile') and
-                    not binder.spelling.startswith('StepFile')):
-                continue
-
-            # Bind only these types of cursors
-            if binder.kind not in to_bind:
-                continue
-
-            # Skip if it's a "Handle_*" definition
-            if binder.spelling.startswith('Handle_'):
-                continue
-
-            # Skip if function starts with "operator"
-            if binder.is_function and binder.spelling.startswith('operator'):
-                continue
-
-            # Add binder only if it's in an OCCT header file.
-            inc = binder.filename
-            if inc not in available_incs:
-                continue
-
-            # Add binder if it's in an available module
-            mod_name = binder.module_name
-            if mod_name not in Generator.available_mods:
-                continue
-
-            # Add to module
-            mod = self.get_module(mod_name)
-            if not mod:
-                continue
-
-            qname = binder.qualified_name
-
-            # Skip if specified
-            if qname in self.skipped:
-                msg = '\tSkipping {}.\n'.format(binder.type.spelling)
-                logger.write(msg)
-                continue
-
-            # Check for anon/untagged enum
-            if not qname and binder.is_enum:
-                qname = binder.type.spelling
-
-            if not qname:
-                msg = '\tNo qualified name. Skipping {}.\n'.format(
-                    binder.type.spelling
-                )
-                logger.write(msg)
-                continue
-
-            if binder.is_enum:
-                mod.enums.append(binder)
-                msg = '\tFound enum: {}\n'.format(qname)
-                enum_log.append(msg)
-            elif binder.is_function:
-                mod.funcs.append(binder)
-                msg = '\tFound function: {}({})\n'.format(qname, mod_name)
-                function_log.append(msg)
-            elif binder.is_class:
-                mod.types.append(binder)
-                msg = '\tFound class: {}\n'.format(qname)
-                types_log.append(msg)
-                spelling = binder.type.get_canonical().spelling
-                canonical_types[spelling] = binder
-                # Check for macro
-                if qname in available_macros:
-                    binder.macro = available_macros[qname]
-                    msg = '\tFound macro: {}-->{}\n'.format(qname,
-                                                            binder.macro.name)
-                    types_log.append(msg)
-            elif binder.is_typedef:
-                mod.types.append(binder)
-                msg = '\tFound typedef: {}\n'.format(qname)
-                types_log.append(msg)
-                # Check for an alias
-                spelling = binder.type.get_canonical().spelling
-                if spelling in canonical_types:
-                    alias = canonical_types[spelling]
-                    binder.alias = alias
-                    alias_qname = alias.qualified_name
-                    msg = '\tFound alias: {}-->{}\n'.format(qname,
-                                                            alias_qname)
-                    alias_log.append(msg)
-                else:
-                    canonical_types[spelling] = binder
-            elif binder.is_class_template:
-                mod.templates.append(binder)
-                msg = '\tFound class template: {}\n'.format(qname)
-                template_log.append(msg)
-            else:
-                msg = '\tFound unknown cursor: {}\n'.format(qname)
-                unknown_log.append(msg)
-
+        for binder in self.tu_binder.get_children():
+            self.traverse_binder(binder, logs, canonical_types, available_macros)
         logger.write('done.\n\n')
 
         logger.write('Enums...\n')
@@ -779,6 +700,117 @@ class Generator(object):
         for txt in unknown_log:
             logger.write(txt)
         logger.write('done.\n\n')
+
+    def traverse_binder(
+        self,
+        binder: "CursorBinder",
+        logs: dict[str, list[str]],
+        canonical_types: dict,
+        available_macros: dict,
+    ):
+        # Only bind definitions
+        # TODO Why is IGESFile and StepFile not considered definitions?
+        if (not binder.is_definition and
+                not binder.spelling.startswith('IGESFile') and
+                not binder.spelling.startswith('StepFile')):
+            return
+
+        if binder.is_namespace:
+            # clang 16+ must manually walk ns
+            if binder.spelling.startswith("__") or binder.spelling in self.excluded_namespaces:
+                return
+            for binder in binder.get_children():
+                self.traverse_binder(binder, logs, canonical_types, available_macros)
+            return
+
+        # Bind only these types of cursors
+        if binder.kind not in self.to_bind:
+            return
+
+        # Skip if it's a "Handle_*" definition
+        if binder.spelling.startswith('Handle_'):
+            return
+
+        # Skip if function starts with "operator"
+        if binder.is_function and binder.spelling.startswith('operator'):
+            return
+
+        # Add binder only if it's in an OCCT header file.
+        inc = binder.filename
+        if inc in self.excluded_headers or inc not in self.available_incs:
+            return
+
+        # Add binder if it's in an available module
+        mod_name = binder.module_name
+        if mod_name not in Generator.available_mods:
+            return
+
+        # Add to module
+        mod = self.get_module(mod_name)
+        if not mod:
+            return
+
+        qname = binder.qualified_name
+
+        # Skip if specified
+        if qname in self.skipped:
+            msg = '\tSkipping {}.\n'.format(binder.type.spelling)
+            logger.write(msg)
+            return
+
+        # Check for anon/untagged enum
+        if not qname and binder.is_enum:
+            qname = binder.type.spelling
+
+        if not qname:
+            msg = '\tNo qualified name. Skipping {}.\n'.format(
+                binder.type.spelling
+            )
+            logger.write(msg)
+            return
+
+        if binder.is_enum:
+            mod.enums.append(binder)
+            msg = '\tFound enum: {}\n'.format(qname)
+            logs["enum"].append(msg)
+        elif binder.is_function:
+            mod.funcs.append(binder)
+            msg = '\tFound function: {}({})\n'.format(qname, mod_name)
+            logs["function"].append(msg)
+        elif binder.is_class:
+            mod.types.append(binder)
+            msg = '\tFound class: {}\n'.format(qname)
+            logs["types"].append(msg)
+            spelling = binder.type.get_canonical().spelling
+            canonical_types[spelling] = binder
+            # Check for macro
+            if qname in available_macros:
+                binder.macro = available_macros[qname]
+                msg = '\tFound macro: {}-->{}\n'.format(qname,
+                                                        binder.macro.name)
+                logs["types"].append(msg)
+        elif binder.is_typedef:
+            mod.types.append(binder)
+            msg = '\tFound typedef: {}\n'.format(qname)
+            logs["types"].append(msg)
+            # Check for an alias
+            spelling = binder.type.get_canonical().spelling
+            if spelling in canonical_types:
+                alias = canonical_types[spelling]
+                binder.alias = alias
+                alias_qname = alias.qualified_name
+                msg = '\tFound alias: {}-->{}\n'.format(qname,
+                                                        alias_qname)
+                logs["alias"].append(msg)
+            else:
+                canonical_types[spelling] = binder
+        elif binder.is_class_template:
+            mod.templates.append(binder)
+            msg = '\tFound class template: {}\n'.format(qname)
+            logs["template"].append(msg)
+        else:
+            msg = '\tFound unknown cursor: {}\n'.format(qname)
+            logs["unknown"].append(msg)
 
     def build_includes(self):
         """
@@ -1531,6 +1563,10 @@ class CursorBinder(object):
         return self.kind == CursorKind.TYPE_REF
 
     @property
+    def is_namespace(self) -> bool:
+        return self.kind == CursorKind.NAMESPACE
+
+    @property
     def is_public(self):
         return not self.is_private and not self.is_protected
 
@@ -1615,8 +1651,10 @@ class CursorBinder(object):
             name = self.qualified_name
             # Special case trying to exclude functions with certain signatures
             dname = self.qualified_display_name
+            rtype = self.rtype.spelling
             return (any(fnmatch(name, pat) for pat in Generator.excluded_functions) or
-                    any(fnmatch(dname, pat) for pat in Generator.excluded_functions))
+                    any(fnmatch(dname, pat) for pat in Generator.excluded_functions) or
+                    any(fnmatch(rtype, pat) for pat in Generator.excluded_rtypes))
         elif self.is_class or self.is_class_template:
             return self.qualified_name in Generator.excluded_classes
         elif self.is_typedef:
@@ -1631,9 +1669,11 @@ class CursorBinder(object):
             if self.is_static_method:
                 name += '_'
                 fname += '_'
+            rtype = self.rtype.spelling
             return (any(fnmatch(name, pat) for pat in Generator.excluded_functions) or
                     any(fnmatch(fname, pat) for pat in Generator.excluded_fnames) or
-                    any(fnmatch(dname, pat) for pat in Generator.excluded_functions))
+                    any(fnmatch(dname, pat) for pat in Generator.excluded_functions) or
+                    any(fnmatch(rtype, pat) for pat in Generator.excluded_rtypes))
 
         return False
 
@@ -1802,7 +1842,7 @@ class CursorBinder(object):
         :return: List of base classes.
         :rtype: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.CXX_BASE_SPECIFIER)
+        return list(self.get_children_of_kind(CursorKind.CXX_BASE_SPECIFIER))
 
     @property
     def _all_bases(self):
@@ -1917,8 +1957,7 @@ class CursorBinder(object):
         :return: List of nested classes.
         :rtype: list(binder.core.CursorBinder)
         """
-        return (self.get_children_of_kind(CursorKind.CLASS_DECL) +
-                self.get_children_of_kind(CursorKind.STRUCT_DECL))
+        return list(self.get_children_of_kind(CursorKind.CLASS_DECL, CursorKind.STRUCT_DECL))
 
     @property
     def parameters(self):
@@ -2042,12 +2081,10 @@ class CursorBinder(object):
         :return: The children.
         :rtype: list(binder.core.CursorBinder)
         """
-        children = []
         for child in self.cursor.get_children():
-            children.append(CursorBinder(child))
-        return children
+            yield CursorBinder(child)
 
-    def get_children_of_kind(self, kind, only_public=False):
+    def get_children_of_kind(self, *kind, only_public=False):
         """
         Get children of a specified kind.
         :param clang.cindex.CursorKind kind: The cursor kind.
@@ -2055,14 +2092,12 @@ class CursorBinder(object):
         :return: List of children.
         :rtype: list(binder.core.CursorBinder)
         """
-        children = []
         for c in self.get_children():
-            if c.kind != kind:
+            if c.kind not in kind:
                 continue
             if only_public and not c.is_public:
                 continue
-            children.append(c)
-        return children
+            yield c
 
     def dfs(self):
         """
@@ -2184,7 +2219,6 @@ class CursorBinder(object):
             return generate_field(self)
         elif self.is_constructor:
             return generate_ctor(self)
-
         return []
 
 
@@ -2686,7 +2720,7 @@ def generate_class(binder):
         return src
 
     # Don't bind if it doesn't have any children.
-    if len(binder.get_children()) == 0:
+    if next(binder.get_children(), None) is None:
         logger.write(
             '\tNot binding class: {}\n'.format(binder.python_name))
         return []
