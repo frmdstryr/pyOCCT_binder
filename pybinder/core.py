@@ -1908,7 +1908,7 @@ class CursorBinder(object):
         :return: List of constructors.
         :rtype: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.CONSTRUCTOR)
+        return list(self.get_children_of_kind(CursorKind.CONSTRUCTOR))
 
     @property
     def dtors(self):
@@ -1916,7 +1916,7 @@ class CursorBinder(object):
         :return: List of destructors.
         :rtype: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.DESTRUCTOR)
+        return list(self.get_children_of_kind(CursorKind.DESTRUCTOR))
 
     @property
     def has_public_dtor(self):
@@ -1924,8 +1924,7 @@ class CursorBinder(object):
         :return: Check if the binder has a public destructor.
         :rtype: bool
         """
-        dtors = self.get_children_of_kind(CursorKind.DESTRUCTOR, True)
-        return len(dtors) > 0
+        return any(self.get_children_of_kind(CursorKind.DESTRUCTOR, True))
 
     @property
     def fields(self):
@@ -1933,7 +1932,7 @@ class CursorBinder(object):
         :return: List of fields.
         :rtype: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.FIELD_DECL)
+        return list(self.get_children_of_kind(CursorKind.FIELD_DECL))
 
     @property
     def enums(self):
@@ -1941,7 +1940,7 @@ class CursorBinder(object):
         :return: List of enums.
         :rtype: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.ENUM_DECL)
+        return list(self.get_children_of_kind(CursorKind.ENUM_DECL))
 
     @property
     def methods(self):
@@ -1949,7 +1948,7 @@ class CursorBinder(object):
         :return: List of class methods.
         :rtype: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.CXX_METHOD)
+        return list(self.get_children_of_kind(CursorKind.CXX_METHOD))
 
     @property
     def nested_classes(self):
@@ -1965,7 +1964,7 @@ class CursorBinder(object):
         :return: List of parameters.
         :rtype: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.PARM_DECL)
+        return list(self.get_children_of_kind(CursorKind.PARM_DECL))
 
     @property
     def default_value(self):
@@ -1992,7 +1991,7 @@ class CursorBinder(object):
         :return: List of enum constant binders.
         :type: list(binder.core.CursorBinder)
         """
-        return self.get_children_of_kind(CursorKind.ENUM_CONSTANT_DECL)
+        return list(self.get_children_of_kind(CursorKind.ENUM_CONSTANT_DECL))
 
     @property
     def template_parameters(self):
@@ -2000,12 +1999,10 @@ class CursorBinder(object):
         :return: List of template parameters.
         :type: list(binder.core.CursorBinder)
         """
-        params = []
-        for child in self.get_children():
-            if (child.kind == CursorKind.TEMPLATE_TYPE_PARAMETER or
-                    child.kind == CursorKind.TEMPLATE_NON_TYPE_PARAMETER):
-                params.append(child)
-        return params
+        return list(self.get_children_of_kind(
+            CursorKind.TEMPLATE_TYPE_PARAMETER,
+            CursorKind.TEMPLATE_NON_TYPE_PARAMETER
+        ))
 
     @property
     def needs_nodelete(self):
@@ -2090,7 +2087,7 @@ class CursorBinder(object):
         :param clang.cindex.CursorKind kind: The cursor kind.
         :param bool only_public: Return only cursor that are public.
         :return: List of children.
-        :rtype: list(binder.core.CursorBinder)
+        :rtype: Generator(binder.core.CursorBinder)
         """
         for c in self.get_children():
             if c.kind not in kind:
@@ -2726,7 +2723,7 @@ def generate_class(binder):
         return src
 
     # Don't bind if it doesn't have any children.
-    if next(binder.get_children(), None) is None:
+    if not any(binder.get_children()):
         logger.write(
             '\tNot binding class: {}\n'.format(binder.python_name))
         return []
