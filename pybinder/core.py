@@ -716,7 +716,7 @@ class Generator(object):
             return
 
         if binder.is_namespace:
-            # clang 16+ must manually walk ns
+            # clang 20+ must manually walk ns
             if binder.spelling.startswith("__") or binder.spelling in self.excluded_namespaces:
                 return
             for binder in binder.get_children():
@@ -2507,7 +2507,13 @@ def bind_typedef(binder):
 
     # Comment if excluded (check if already commented in case the typedef is an
     # already commented out class definition.
-    if binder.is_excluded:
+    if (binder.is_excluded or (
+        other_src
+        and (
+            other_src[0].startswith("bind_opencascade::handle")
+            or other_src[0].startswith("bind_std::")
+        )
+    )):
         other_src.insert(0, '/*\n')
         if other_src[-1] != '*/\n':
             other_src.append('*/\n')
