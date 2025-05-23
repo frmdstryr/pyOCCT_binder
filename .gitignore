@@ -12,3 +12,6 @@ __pycache__/
 generate/
 test/output/
 log.txt
+
+build/
+*.egg-info

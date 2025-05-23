@@ -28,7 +28,7 @@ void bind_TestSplit_2(py::module &mod)
 {
 
 // CLASS: TESTSPLIT_CLASSB
-py::class_<TestSplit_ClassB> cls_TestSplit_ClassB(mod, "TestSplit_ClassB", "None");
+py::class_<TestSplit_ClassB> cls_TestSplit_ClassB(mod, "TestSplit_ClassB", "");
 
 // Constructors
 cls_TestSplit_ClassB.def(py::init<>());
