@@ -26,6 +26,7 @@ import warnings
 from collections import OrderedDict
 from ctypes import c_uint
 from fnmatch import fnmatch
+from functools import cached_property
 
 from clang.cindex import (AccessSpecifier, Index, TranslationUnit,
                           CursorKind, TypeKind, Cursor)
@@ -1844,7 +1845,7 @@ class CursorBinder(object):
         """
         return list(self.get_children_of_kind(CursorKind.CXX_BASE_SPECIFIER))
 
-    @property
+    @cached_property
     def _all_bases(self):
         """
         :return: All base classes.
@@ -2070,7 +2071,16 @@ class CursorBinder(object):
         :return: The definition.
         :rtype: binder.core.CursorBinder
         """
-        return CursorBinder(self.cursor.get_specialization())
+        spec = self.cursor.get_specialization()
+        if not hasattr(spec, "_tu"):
+            # TODO is this a python-clang bug in 20+ or are we doing something wrong here?
+            # Hack to workaround
+            # Traceback (most recent call last):
+            # File "python3.13/site-packages/clang/cindex.py", line 2106, in visitor
+            #    child._tu = self._tu
+            # AttributeError: 'Cursor' object has no attribute '_tu
+            spec._tu = self.cursor._tu
+        return CursorBinder(spec)
 
     def get_children(self):
         """
