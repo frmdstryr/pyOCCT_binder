@@ -231,15 +231,8 @@ class Generator(object):
                 try:
                     line = line.strip()
 
-                    # Line comment
-                    if line.startswith('#'):
-                        continue
-
-                    # Include directory
-                    if line.startswith('+include'):
-                        line = line.replace('+include', '')
-                        line = line.strip()
-                        self.include_dirs.append(line)
+                    # Comment or blank line
+                    if line.startswith('#') or not line:
                         continue
 
                     # Compiler argument
@@ -253,6 +246,13 @@ class Generator(object):
                             self.compiler_args[platform].append(arg)
                         else:
                             self.compiler_args[platform] = [arg]
+                        continue
+
+                    # Include directory
+                    if line.startswith('+include'):
+                        line = line.replace('+include', '')
+                        line = line.strip()
+                        self.include_dirs.append(line)
                         continue
 
                     # Sort order
@@ -297,7 +297,12 @@ class Generator(object):
                         continue
 
                     if line.startswith('-function'):
-                        line = line.replace('-function', '')
+                        action, line = line.split(" ", 1)
+                        if "@" in action:
+                            # Platform specific
+                            action, platform = action.split("@")
+                            if platform != sys.platform:
+                                continue
                         line = line.strip().replace("[", "[[]")
                         self.excluded_functions.add(line)
                         continue
