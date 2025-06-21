@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ['ubuntu-latest', 'macos-latest', 'windows-latest']
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
 
       - name: "Clone binder"
@@ -23,12 +23,13 @@ jobs:
         uses: mamba-org/setup-micromamba@v2
         with:
             environment-file: test/environment.yml
+            init-shell: bash powershell
             cache-environment: true
 
       - name: "Install binder"
-        shell: bash -el {0}
+        shell: pwsh
         run: python setup.py install
 
       - name: "Test binder"
-        shell: bash -el {0}
+        shell: pwsh
         run: cd test && python -m unittest discover

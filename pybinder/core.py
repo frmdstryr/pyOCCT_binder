@@ -27,16 +27,18 @@ from collections import OrderedDict
 from ctypes import c_uint
 from fnmatch import fnmatch
 from functools import cached_property
+from glob import glob
 
 from clang.cindex import (AccessSpecifier, Index, TranslationUnit,
-                          CursorKind, TypeKind, Cursor, conf)
+                          CursorKind, TypeKind, Cursor, LibclangError, conf)
 
+try:
+    conf.get_cindex_library()
+except LibclangError:
+    if sys.platform == 'win32' and (conda_prefix := os.environ.get("CONDA_PREFIX")):
+        if libclang_dlls := glob(f"{conda_prefix}/Library/bin/libclang*.dll"):
+            conf.set_library_file(libclang_dlls[0])
 
-if sys.platform == 'win32' and not os.path.exists(conf.get_filename()) and 'CONDA_PREFIX' in os.environ:
-    from glob import glob
-    CONDA_PREFIX = os.environ["CONDA_PREFIX"]
-    if libclang_dlls := glob(f"{CONDA_PREFIX}/bin/libclang*.dll"):
-        conf.set_library_file(libclang_dlls[0])
 
 from pybinder import clangext
 from pybinder.common import SRC_PREFIX, PY_OPERATORS
