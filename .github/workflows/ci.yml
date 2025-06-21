@@ -26,9 +26,9 @@ jobs:
             cache-environment: true
 
       - name: "Install binder"
-        shell: micromamba-shell {0}
+        shell: bash -el {0}
         run: python setup.py install
 
       - name: "Test binder"
-        shell: micromamba-shell {0}
+        shell: bash -el {0}
         run: cd test && python -m unittest discover
