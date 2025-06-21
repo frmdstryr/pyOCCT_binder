@@ -30,13 +30,13 @@ from functools import cached_property
 from glob import glob
 
 from clang.cindex import (AccessSpecifier, Index, TranslationUnit,
-                          CursorKind, TypeKind, Cursor, conf)
+                          CursorKind, TypeKind, Cursor, LibclangError, conf)
 
-if not os.path.exists(conf.get_filename()):
-    print(os.environ)
-    CONDA_PREFIX = os.environ.get("CONDA_PREFIX")
-    if sys.platform == 'win32':
-        if libclang_dlls := glob(f"{CONDA_PREFIX}/bin/libclang*.dll"):
+try:
+    conf.get_cindex_library()
+except LibclangError:
+    if sys.platform == 'win32' and (conda_prefix := os.environ.get("CONDA_PREFIX")):
+        if libclang_dlls := glob(f"{conda_prefix}/Library/bin/libclang*.dll"):
             conf.set_library_file(libclang_dlls[0])
 
 
