@@ -29,7 +29,14 @@ from fnmatch import fnmatch
 from functools import cached_property
 
 from clang.cindex import (AccessSpecifier, Index, TranslationUnit,
-                          CursorKind, TypeKind, Cursor)
+                          CursorKind, TypeKind, Cursor, conf)
+
+
+if sys.platform == 'win32' and not os.path.exists(conf.get_filename()) and 'CONDA_PREFIX' in os.environ:
+    from glob import glob
+    CONDA_PREFIX = os.environ["CONDA_PREFIX"]
+    if libclang_dlls := glob(f"{CONDA_PREFIX}/bin/libclang*.dll"):
+        conf.set_library_file(libclang_dlls[0])
 
 from pybinder import clangext
 from pybinder.common import SRC_PREFIX, PY_OPERATORS
