@@ -277,7 +277,12 @@ class Generator(object):
 
                     # Excluded classes
                     if line.startswith('-class'):
-                        line = line.replace('-class', '')
+                        action, line = line.split(" ", 1)
+                        if "@" in action:
+                            # Platform specific
+                            action, platform = action.split("@")
+                            if platform != sys.platform:
+                                continue
                         line = line.strip()
                         self.excluded_classes.add(line)
                         continue
