@@ -7,126 +7,28 @@ on:
     branches:
       - '*'
 jobs:
-  test_linux:
+  test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ['ubuntu-latest']
+        os: ['ubuntu-latest', 'macos-latest', 'windows-latest']
     steps:
 
       - name: "Clone binder"
         uses: actions/checkout@v2
 
-      - name: "Configure conda"
-        shell: pwsh
-        run: |
-          conda init --all
-          conda env create -f test/environment.yml
-
-      - name: "Check conda"
-        shell: pwsh
-        run: |
-          conda activate binder
-          conda info -a
-          conda list
+      - name: "Create env"
+        uses: mamba-org/setup-micromamba@v2
+        with:
+            environment-file: test/environment.yml
+            cache-environment: true
 
       - name: "Install binder"
-        shell: pwsh
-        run: |
-          conda activate binder
-          python setup.py install
+        shell: micromamba-shell {0}
+        run: python setup.py install
 
       - name: "Test binder"
-        shell: pwsh
-        run: |
-          conda activate binder
-          cd test
-          python -m unittest discover
-
-  test_win:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ['windows-latest']
-    steps:
-
-      - name: "Clone binder"
-        uses: actions/checkout@v2
-
-      - name: "Add conda to PATH"
-        shell: bash -l {0}
-        run: echo "$CONDA/Scripts" >> $GITHUB_PATH
-
-      - name: "Configure conda"
-        shell: bash -l {0}
-        run: |
-          conda init --all
-          conda env create -f test/environment.yml
-
-      - name: "Check conda"
-        shell: bash -l {0}
-        run: |
-          conda activate binder
-          conda info -a
-          conda list
-
-      - name: "Install binder"
-        shell: bash -l {0}
-        run: |
-          conda activate binder
-          python setup.py install
-
-      - name: "Test binder"
-        shell: bash -l {0}
-        run: |
-          conda activate binder
-          cd test
-          python -m unittest discover
-
-  test_macos:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ['macos-latest']
-    steps:
-
-      - name: "Clone binder"
-        uses: actions/checkout@v2
-
-      - name: "Add conda to PATH"
-        run: echo "$CONDA/bin" >> $GITHUB_PATH
-
-      - name: "MacOS fix"
-        run: sudo chown -R $USER $CONDA
-
-      - name: "Configure conda"
-        shell: pwsh
-        run: |
-          conda init --all
-          conda env create -f test/environment.yml
-
-      - name: "Check conda"
-        shell: pwsh
-        run: |
-          conda activate binder
-          conda info -a
-          conda list
-
-      - name: "Install binder"
-        shell: pwsh
-        run: |
-          conda activate binder
-          python setup.py install
-
-      - name: "Test binder"
-        shell: pwsh
-        run: |
-          conda activate binder
-          cd test
-          python -m unittest discover
+        shell: micromamba-shell {0}
+        run: cd test && python -m unittest discover
